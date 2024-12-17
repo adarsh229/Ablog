@@ -4,17 +4,18 @@ var bodyParser = require("body-parser");
 var mongoose = require("mongoose");
 var methodOverride = require("method-override");
 var expressSanitizer = require("express-sanitizer");
+const { MongoClient, ServerApiVersion } = require("mongodb");
 
 // mongoose.connect("mongodb://localhost/restfulBlogApp", { useNewUrlParser: true });
 const dbPassword = process.env.DB_PASSWORD;
 const uri = `mongodb+srv://ouadarsh:${dbPassword}@cluster0.lgoyc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(uri, {
     serverApi: {
-      version: ServerApiVersion.v1,
-      strict: true,
-      deprecationErrors: true,
+        version: ServerApiVersion.v1,
+        strict: true,
+        deprecationErrors: true,
     }
-  });
+});
 
 async function run() {
 try {

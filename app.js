@@ -7,29 +7,6 @@ var expressSanitizer = require("express-sanitizer");
 const { MongoClient, ServerApiVersion } = require("mongodb");
 
 // mongoose.connect("mongodb://localhost/restfulBlogApp", { useNewUrlParser: true });
-const dbPassword = process.env.DB_PASSWORD;
-const uri = `mongodb+srv://ouadarsh:${dbPassword}@cluster0.lgoyc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-const client = new MongoClient(uri, {
-    serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-    }
-});
-
-async function run() {
-try {
-    // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-} finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
-}
-}
-run().catch(console.dir);
 
 app.set("view engine", "ejs");
 app.use(express.static("public"));
@@ -47,100 +24,121 @@ var blogSchema = new mongoose.Schema({
 
 var Blog = mongoose.model("Blog", blogSchema);
 
-// RESTful ROUTES 
+const dbPassword = process.env.DB_PASSWORD;
+const uri = `mongodb+srv://ouadarsh:${dbPassword}@cluster0.lgoyc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
-// Blog.create({
-//     title: "Test",
-//     image: "http://www.camp-liza.com/wp-content/uploads/2017/10/DSC_4467.jpg",
-//     body: "This is a test blog",
+
+mongoose.connect(uri);
+
+  mongoose.connection.on("connected", () => {
+    console.log("Connected to MongoDB via Mongoose");
+  });
   
-// })
-
+  mongoose.connection.on("error", (err) => {
+    console.error(`Mongoose connection error: ${err.message}`);
+  });
+  
 app.get("/", function(req, res) {
     res.redirect("/blogs");
 })
-//INDEX
-app.get("/blogs", function(req, res) {
-    Blog.find({}).then((res) => {
-        console.log(res);
-        res.render("index",{blogs: blogs});
-    }).catch((err) => {
+
+app.get("/blogs", function (req, res) {
+    Blog.find({})
+      .then((blogs) => {
+        console.log(`fetched blogs:`,  blogs);
+        res.render("index", { blogs: blogs });
+      })
+      .catch((err) => {
         console.log(err);
-    })
-})
+        res.status(500).send("Error retrieving blogs");
+      });
+  });
+  
 
 //NEW  ROUTE 
 app.get("/blogs/new", function(req, res) {
     res.render("new");
 });
 
-//CREATE ROUTE
 
-app.post("/blogs", function(req, res) {
-    //create blog then redirect to index
-    console.log(req.body);
-    req.body.blog.body = req.sanitize(req.body.blog.body);
-    console.log("-----------")
-    console.log(req.body);
-    Blog.create(req.body.blog, function(err,newBlog) {
-        if(err) {
-            res.render("new");
-        } else {
-            res.redirect("/blogs");
+
+// CREATE ROUTE
+app.post("/blogs", async function (req, res) {
+    try {
+        req.body.blog.body = req.sanitize(req.body.blog.body);
+        const newBlog = await Blog.create(req.body.blog);
+        console.log("Blog created:", newBlog);
+        res.redirect("/blogs");
+    } catch (err) {
+        console.error("Error creating blog:", err);
+        res.render("new");
+    }
+});
+
+// SHOW ROUTE
+app.get("/blogs/:id", async function (req, res) {
+    try {
+        const foundBlog = await Blog.findById(req.params.id);
+        if (!foundBlog) {
+            console.error("Blog not found");
+            return res.redirect("/blogs");
         }
-    })
-})
+        res.render("show", { blog: foundBlog });
+    } catch (err) {
+        console.error("Error finding blog:", err);
+        res.redirect("/blogs");
+    }
+});
 
-//SHOW ROUTE
-
-app.get("/blogs/:id", function(req, res) {
-    Blog.findById(req.params.id, function(err,foundBlog) {
-        if(err) {
-            res.redirect("/blogs");
-        } else {
-            res.render("show", {blog: foundBlog});
+// EDIT ROUTE
+app.get("/blogs/:id/edit", async function (req, res) {
+    try {
+        const foundBlog = await Blog.findById(req.params.id);
+        if (!foundBlog) {
+            console.error("Blog not found for editing");
+            return res.redirect("/blogs");
         }
-    })
-})
+        res.render("edit", { blog: foundBlog });
+    } catch (err) {
+        console.error("Error finding blog for editing:", err);
+        res.redirect("/blogs");
+    }
+});
 
-//EDIT route
-
-app.get("/blogs/:id/edit", function(req, res) {
-    Blog.findById(req.params.id, function(err,foundBlog) {
-        if(err){
-            res.render("/blogs");
-        } else {
-            res.render("edit", {blog: foundBlog});
+// UPDATE ROUTE
+app.put("/blogs/:id", async function (req, res) {
+    try {
+        req.body.blog.body = req.sanitize(req.body.blog.body);
+        const updatedBlog = await Blog.findByIdAndUpdate(req.params.id, req.body.blog, {
+            new: true, // return the updated document
+            runValidators: true, // run schema validations
+        });
+        if (!updatedBlog) {
+            console.error("Error updating blog");
+            return res.redirect("/blogs");
         }
-    })
-   
-})
+        res.redirect(`/blogs/${req.params.id}`);
+    } catch (err) {
+        console.error("Error updating blog:", err);
+        res.redirect("/blogs");
+    }
+});
 
-//UPDATE Route
-
-app.put("/blogs/:id", function(req, res) {
-    req.body.blog.body = req.sanitize(req.body.blog.body);
-    Blog.findByIdAndUpdate(req.params.id, req.body.blog, function(err,updatedBlog) {
-        if(err) {
-            res.redirect("/blogs");
-        } else {
-            res.redirect("/blogs/"+req.params.id);
+// DESTROY ROUTE
+app.delete("/blogs/:id", async function (req, res) {
+    try {
+        const deletedBlog = await Blog.findByIdAndDelete(req.params.id);
+        if (!deletedBlog) {
+            console.error("Error deleting blog");
+            return res.redirect("/blogs");
         }
-    })
-})
-//DESTROY route
-app.delete("/blogs/:id", function(req, res) {
-    //destroy blog and redirect somewhere 
+        res.redirect("/blogs");
+    } catch (err) {
+        console.error("Error deleting blog:", err);
+        res.redirect("/blogs");
+    }
+});
 
-    Blog.findByIdAndRemove(req.params.id, function(err) {
-        if(err) {
-            res.redirect("/blogs");
-        } else {
-            res.redirect("/blogs");
-        }
-    })
-
-})
 
 app.listen(3000, function() {
     console.log("server is running");

@@ -61,20 +61,18 @@ app.get("/", function(req, res) {
 })
 //INDEX
 app.get("/blogs", function(req, res) {
-    Blog.find({}, function(err, blogs) {
-        if(err) {
-            console.log(err);
-        } else {
-            res.render("index",{blogs: blogs});
-        }
+    Blog.find({}).then((res) => {
+        console.log(res);
+        res.render("index",{blogs: blogs});
+    }).catch((err) => {
+        console.log(err);
     })
-    
 })
 
 //NEW  ROUTE 
 app.get("/blogs/new", function(req, res) {
     res.render("new");
-})
+});
 
 //CREATE ROUTE
 
